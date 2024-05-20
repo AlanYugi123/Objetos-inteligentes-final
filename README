@@ -1,0 +1,134 @@
+Sistema de Monitoramento de Luminosidade e Controle de LED via MQTT
+
+Descrição
+Este projeto utiliza um Arduino Uno para monitorar a luminosidade ambiente com um sensor LDR e controlar um LED com base nos valores lidos. A comunicação com o protocolo MQTT permite controlar o LED remotamente e monitorar o estado do sistema.
+
+Materiais Utilizados
+Arduino Uno
+Sensor de Luminosidade (LDR)
+Resistor de 620Ω
+LED
+Módulo ESP8266 para comunicação WiFi
+Broker MQTT (Mosquitto)
+
+Configuração do Hardware
+Conecte o LDR entre o pino A0 do Arduino e o positivo da alimentação.
+Conecte um resistor de 620Ω em série com o LDR e conecte o outro terminal do resistor ao GND.
+Conecte o LED ao pino digital 13 do Arduino com um resistor de 220Ω em série.
+Conecte o módulo ESP8266 ao Arduino para permitir a comunicação WiFi.
+
+Código Arduino
+Abra o Arduino IDE.
+Copie e cole o seguinte código no Arduino IDE:
+
+int ldrPin = A0; // Pino analógico onde o LDR está conectado
+int ledPin = 13; // Pino digital onde o LED está conectado
+float seriesResistor = 620.0; // Valor do resistor fixo (620Ω)
+float threshold = 50000.0; // Valor de resistência para considerar a luz baixa
+
+void setup() {
+  pinMode(ledPin, OUTPUT); // Define o pino do LED como saída
+  Serial.begin(9600); // Inicializa a comunicação serial
+}
+
+void loop() {
+  int analogValue = analogRead(ldrPin); // Lê o valor analógico do LDR
+  float voltage = analogValue * (5.0 / 1023.0); // Converte a leitura analógica para tensão
+  float resistance = seriesResistor * (5.0 / voltage - 1.0);
+
+  // Verifica a resistência e acende/apaga o LED
+  if (resistance > threshold) { // Limite de resistência para luz baixa
+    digitalWrite(ledPin, HIGH); // Acende o LED
+    Serial.println("LED ON"); // Envia o estado do LED para o PC
+  } else {
+    digitalWrite(ledPin, LOW); // Apaga o LED
+    Serial.println("LED OFF"); // Envia o estado do LED para o PC
+  }
+
+  delay(1000); // Aguarda 1 segundo antes da próxima leitura
+}
+Carregue o código no Arduino.
+
+Código Python
+
+Instale as bibliotecas necessárias:
+pip install pyserial paho-mqtt
+
+Copie e cole o seguinte código em um arquivo Python:
+
+import serial
+import time
+import paho.mqtt.client as mqtt
+from datetime import datetime
+
+# Configurações do broker MQTT
+broker = "localhost"  # Substitua pelo endereço IP do seu broker MQTT
+port = 1883
+topic_pub = "led/status"
+topic_sub = "led/control"
+
+# Configurações da porta serial
+serial_port = "COM5"  # Substitua pelo nome da porta serial do seu Arduino
+baud_rate = 9600
+
+try:
+    ser = serial.Serial(serial_port, baud_rate)
+except serial.SerialException as e:
+    print(f"Erro ao abrir a porta serial {serial_port}: {e}")
+    exit()
+
+# Callback para conexão com o broker MQTT
+def on_connect(client, userdata, flags, rc):
+    print("Conectado ao broker MQTT")
+    client.subscribe(topic_sub)
+
+# Callback para recebimento de mensagens do MQTT
+def on_message(client, userdata, msg):
+    print(f"Recebido: {msg.topic} {msg.payload.decode()}")
+    if msg.topic == topic_sub:
+        ser.write((msg.payload.decode() + '\n').encode())
+
+# Configura o cliente MQTT
+client = mqtt.Client()
+client.on_connect = on_connect
+client.on_message = on_message
+
+try:
+    client.connect(broker, port, 60)
+except Exception as e:
+    print(f"Erro ao conectar ao broker MQTT: {e}")
+    exit()
+
+# Loop principal
+try:
+    client.loop_start()
+    while True:
+        if ser.in_waiting > 0:
+            line = ser.readline().decode('utf-8').strip()
+            if "LED ON" in line or "LED OFF" in line:
+                now = datetime.now()
+                timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+                message = f"{timestamp} - {line}"
+                print(f"Publicando: {message}")
+                client.publish(topic_pub, message)
+        time.sleep(1)
+except KeyboardInterrupt:
+    ser.close()
+    client.loop_stop()
+    client.disconnect()
+
+Execute o código Python para iniciar a comunicação com o Arduino e o broker MQTT.
+
+Executando o Projeto
+
+Certifique-se de que o broker MQTT (Mosquitto) está em execução.
+Conecte o Arduino ao computador e execute o código Python.
+Use um cliente MQTT (como mosquitto_pub e mosquitto_sub) para enviar comandos e monitorar o estado do LED:
+# Para acender o LED
+mosquitto_pub -h localhost -t led/control -m "ON"
+
+# Para apagar o LED
+mosquitto_pub -h localhost -t led/control -m "OFF"
+
+# Para subscrever e ver mensagens publicadas pelo Arduino
+mosquitto_sub -h localhost -t led/status
