@@ -1,0 +1,26 @@
+int ldrPin = A0; // Pino analógico onde o LDR está conectado
+int ledPin = 13; // Pino digital onde o LED está conectado
+float seriesResistor = 620.0; // Valor do resistor fixo (620Ω)
+float threshold = 50000.0; // Valor de resistência para considerar a luz baixa
+
+void setup() {
+  pinMode(ledPin, OUTPUT); // Define o pino do LED como saída
+  Serial.begin(9600); // Inicializa a comunicação serial
+}
+
+void loop() {
+  int analogValue = analogRead(ldrPin); // Lê o valor analógico do LDR
+  float voltage = analogValue * (5.0 / 1023.0); // Converte a leitura analógica para tensão
+  float resistance = seriesResistor * (5.0 / voltage - 1.0);
+
+  // Verifica a resistência e acende/apaga o LED
+  if (resistance > threshold) { // Limite de resistência para luz baixa
+    digitalWrite(ledPin, HIGH); // Acende o LED
+    Serial.println("LED ON"); // Envia o estado do LED para o PC
+  } else {
+    digitalWrite(ledPin, LOW); // Apaga o LED
+    Serial.println("LED OFF"); // Envia o estado do LED para o PC
+  }
+
+  delay(1000); // Aguarda 1 segundo antes da próxima leitura
+}
